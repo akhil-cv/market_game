@@ -26,7 +26,7 @@ class DhanContext:
         return self._access_token
 
 DTYPE = np.dtype([
-    ("ts", "float64"),
+    ("ts", "int64"),
     ("security_id", "U20"),
     ("side", "U3"),
     ("price", "float64"),
@@ -65,30 +65,36 @@ class MarketRecorder:
     async def market_data_loop(self):
         await self.fd.connect()
 
-        while True:
-            raw = await self.fd.ws.recv()
-            remaining = raw
+        try:
+            while True:
+                raw = await self.fd.ws.recv()
+                remaining = raw
 
-            while remaining:
-                update = self.fd.process_data(remaining)
-                if not update:
-                    break
+                while remaining:
+                    update = self.fd.process_data(remaining)
+                    if not update:
+                        break
 
-                remaining = update.pop("remaining_data", None)
+                    remaining = update.pop("remaining_data", None)
 
-                if update["type"] not in ("Bid", "Ask"):
-                    continue
+                    if update["type"] not in ("Bid", "Ask"):
+                        continue
 
-                side = update["type"]
+                    side = update["type"]
 
-                for level in update["depth"]:
-                    self.ring.append((
-                        time.time(),
-                        str(update["security_id"]),
-                        side,
-                        level["price"],
-                        level["quantity"]
-                    ))
+                    for level in update["depth"]:
+                        self.ring.append((
+                            time.time_ns(),
+                            str(update["security_id"]),
+                            side,
+                            level["price"],
+                            level["quantity"]
+                        ))
+                    
+        except asyncio.CancelledError:
+            print("market_data_loop cancelled")
+            raise
+            
 
     # async def parquet_flush(self):
     #     while True:
@@ -141,18 +147,28 @@ class MarketRecorder:
             print(f"Wrote {len(snapshot)} rows → {file_path}")
 
     async def run(self):
+        self._tasks = [
+        asyncio.create_task(self.market_data_loop()),
+        asyncio.create_task(self.parquet_flush())
+        ]
+        
         try:
-            await asyncio.gather(
-                self.market_data_loop(),
-                self.parquet_flush()
-            )
+            await asyncio.gather(*self._tasks)
         except asyncio.CancelledError:
-            print("Stopping recorder, flushing remaining data...")
-            snapshot = self.ring.snapshot()
-            if len(snapshot):
-                df = pd.DataFrame(snapshot)
-                table = pa.Table.from_pandas(df, preserve_index=False)
-                fname = time.strftime("nifty_fut_%Y%m%d_%H%M_FINAL.parquet")
-                pq.write_table(table, fname, compression="zstd")
-            raise
+            print("Stopping recorder, cancelling child tasks...")
+
+        for t in self._tasks:
+            t.cancel()
+
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+
+        print("Flushing remaining data...")
+        snapshot = self.ring.snapshot()
+        if len(snapshot):
+            df = pd.DataFrame(snapshot)
+            table = pa.Table.from_pandas(df, preserve_index=False)
+            fname = time.strftime("nifty_fut_%Y%m%d_%H%M_FINAL.parquet")
+            pq.write_table(table, fname, compression="zstd")
+
+        raise
 
