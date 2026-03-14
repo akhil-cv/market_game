@@ -235,7 +235,7 @@ class BestBidAskRecorder:
                 today = datetime.now().strftime("%Y-%m-%d")
                 time_slot = datetime.now().strftime("%H_%M")
 
-                dir_path = os.path.join(BASE_DIR, INSTRUMENT, today)
+                dir_path = os.path.join(BASE_DIR, INSTRUMENT, today,'_')
                 os.makedirs(dir_path, exist_ok=True)
 
                 file_path = os.path.join(dir_path, f"{time_slot}.parquet")
