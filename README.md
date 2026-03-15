@@ -7,7 +7,7 @@ Order of events
 5. Regime Detection
 6. Execution Probability Models</br>
       6.1 Markov model on the order surface
-7. Execution Surfaces
+7. Execution Surfaces</br>
       7.2 4D Surface  P(fill | distance, volume, imbalance, spread)
 8. Online Probability Engine
 9. Bid/Ask Probability Curves
