@@ -5,7 +5,7 @@ Order of events
 3. Order Book Reconstruction
 4. Core Market Microstructure Features
 5. Regime Detection
-6. Execution Probability Models
+6. Execution Probability Models</br>
       6.1 Markov model on the order surface
 7. Execution Surfaces
       7.2 4D Surface  P(fill | distance, volume, imbalance, spread)
